@@ -26,6 +26,8 @@
   "dependencies": {
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "sequelize": "^6.33.0",
+    "sequelizer": "^1.1.4",
     "sqlite3": "5.0.2"
   }
 }
