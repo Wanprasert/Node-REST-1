@@ -1,345 +1,294 @@
-const express = require('express');
-const Sequelize = require('sequelize');
+const express = require("express");
+const sqlite3 = require("sqlite3");
 const app = express();
 
-// parse incoming requests
+const db = new sqlite3.Database("./Database/SQTeamFootball.sqlite");
+
 app.use(express.json());
 
-// create a connection to the database
-const sequelize = new Sequelize('database', 'username', 'password', {
-  host: 'localhost',
-  dialect: 'sqlite',
-  storage: './Database/SQTeamFootball.sqlite',
-});
 
-const Player = sequelize.define('player', {
-  id: {
-    type: Sequelize.INTEGER,
-    autoIncrement: true,
-    primaryKey: true,
-  },
-  nameplayer: {
-    type: Sequelize.STRING,
-    allowNull: false,
-  },
-});
+db.run(`CREATE TABLE IF NOT EXISTS players (player_id INTEGER PRIMARY KEY,
+				name TEXT , number INTRGER  )`);
 
-const Team = sequelize.define('team', {
-  id: {
-    type: Sequelize.INTEGER,
-    autoIncrement: true,
-    primaryKey: true,
-  },
-  teamname: {
-    type: Sequelize.STRING,
-    allowNull: false,
-  },
-});
+db.run(`CREATE TABLE IF NOT EXISTS teams (team_id INTEGER PRIMARY KEY,
+  team_name TEXT)`);
 
-const Score = sequelize.define('score', {
-  id: {
-    type: Sequelize.INTEGER,
-    autoIncrement: true,
-    primaryKey: true,
-  },
-  playerId: {
-    type: Sequelize.INTEGER,
-    allowNull: false,
-  },
-  teamId: {
-    type: Sequelize.INTEGER,
-    allowNull: false,
-  },
-  score: {
-    type: Sequelize.INTEGER,
-    allowNull: false,
-  },
-});
 
-// Player.belongsToMany(Team, { through: Score, foreignKey: 'playerId' });
-// Team.belongsToMany(Player, { through: Score, foreignKey: 'teamId' });
-Player.belongsToMany(Score, {through: Score, 
-  foreignKey: 'playerId',   // recipient
-  otherKey : 'teamId'     // recipient.
+
+db.run(`CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY,
+  player_id INTEGER NOT NULL,team_id INTEGER NOT NULL ,score INTRGER ,
+FOREIGN KEY(player_id) REFERENCES players(player_id) , 
+FOREIGN KEY(team_id) REFERENCES teams(team_id))`);
+
+
+
+// ดึงข้อมูล
+// ดูข้อมูลทั้งหมด
+app.get("/players", (req, res) => {
+  db.all("SELECT * FROM players ",(err, row) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      if (!row) {
+        res.status(404).send("players not found");
+      } else {
+        res.json(row);
+      }
+    }
   });
-sequelize.sync();
-
-app.get('/getPlayers', (req, res) => {
-  // Retrieve playerIds from the SQLite database using db.js
-  const playerIds = db.getPlayerIds();
-  res.json(playerIds);
 });
 
-// route to get all books
-app.get('/players', (req, res) => {
-  Player.findAll()
-    .then((players) => {
-      res.json(players);
-    })
-    .catch((err) => {
+// ดูข้อมูลด้วย id
+app.get("/players/:id", (req, res) => {
+  db.get("SELECT * FROM players WHERE player_id = ? ", req.params.id, (err, row) => {
+    if (err) {
       res.status(500).send(err);
-    });
-});
-
-// route to get a book by id a
-app.get('/players/:id', (req, res) => {
-  Player.findByPk(req.params.id)
-    .then((player) => {
-      if (!player) {
-        res.status(404).send('Palyer not found');
+    } else {
+      if (!row) {
+        res.status(404).send("players not found");
       } else {
-        res.json(player);
+        res.json(row);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
-});
-// Create a new player
-app.post('/players', (req, res) => {
-  const { nameplayer } = req.body;
-
-  Player.create({ nameplayer })
-    .then((player) => {
-      res.send(player);
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  });
 });
 
-// Update a player
-app.put('/players/:id', (req, res) => {
-  const { nameplayer } = req.body;
-  const playerId = req.params.id;
 
-  Player.findByPk(playerId)
-    .then((player) => {
-      if (!player) {
-        res.status(404).send('Player not found');
+//ส่วนนี้บอสทำต่อให้จนเสร็จละ คือการเพิ่มข้อมูล
+app.post("/players", (req, res) => {
+  const players = req.body;
+  db.run(
+    "INSERT INTO players (number,name) VALUES (?,?)",
+    players.number,players.name,
+    (err) => {
+      if (err) {
+        res.status(500).send(err);
       } else {
-        player
-          .update({ nameplayer })
-          .then(() => {
-            res.send(player);
-          })
-          .catch((err) => {
-            res.status(500).send(err);
-          });
+        
+        players.id = this.lastID;
+        res.send(players);
+        res.status(200);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  );
 });
 
-// Delete a player
-app.delete('/players/:id', (req, res) => {
-  const playerId = req.params.id;
 
-  Player.findByPk(playerId)
-    .then((player) => {
-      if (!player) {
-        res.status(404).send('Player not found');
+
+//ส่วนแก้ไข
+app.put("/players/:id", (req, res) => {
+  console.log(req.params.id);
+  const players = req.body;
+  db.run(
+    "UPDATE players SET number = ? , name = ? WHERE player_id = ? ",
+    players.number,
+    players.name,
+    req.params.id,
+    (err) => {
+      if (err) {
+        res.status(500).send(err);
       } else {
-        player
-          .destroy()
-          .then(() => {
-            res.send({});
-          })
-          .catch((err) => {
-            res.status(500).send(err);
-          });
+        res.send(players);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
-});
-app.get('/teams', (req, res) => {
-  Team.findAll()
-    .then((teams) => {
-      res.json(teams);
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  );
 });
 
-// route to get a book by id a
-app.get('/teams/:id', (req, res) => {
-  Team.findByPk(req.params.id)
-    .then((team) => {
-      if (!team) {
-        res.status(404).send('Palyer not found');
+
+//ลบไปทำเอาเอง
+app.delete("/players/:id", (req, res) => {
+  db.run("DELETE FROM players WHERE player_id = ?", req.params.id, (err) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      res.send({});
+    }
+  });
+});
+
+
+
+// province
+
+app.get("/teams", (req, res) => {
+  db.all("SELECT * FROM teams ",(err, row) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      if (!row) {
+        res.status(404).send("teams not found");
       } else {
-        res.json(team);
+        res.json(row);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
-});
-// Create a new team
-app.post('/teams', (req, res) => {
-  const { teamname } = req.body;
-
-  Team.create({ teamname })
-    .then((team) => {
-      res.send(team);
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  });
 });
 
-// Update a team
-app.put('/teams/:id', (req, res) => {
-  const { teamname } = req.body;
-  const teamId = req.params.id;
-
-  Team.findByPk(teamId)
-    .then((team) => {
-      if (!team) {
-        res.status(404).send('Team not found');
+// ดูข้อมูลด้วย id
+app.get("/teams/:id", (req, res) => {
+  db.get("SELECT * FROM teams WHERE team_id = ? ", req.params.id, (err, row) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      if (!row) {
+        res.status(404).send("teams not found");
       } else {
-        team
-          .update({ teamname })
-          .then(() => {
-            res.send(team);
-          })
-          .catch((err) => {
-            res.status(500).send(err);
-          });
+        res.json(row);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  });
 });
 
-// Delete a team
-app.delete('/teams/:id', (req, res) => {
-  const teamId = req.params.id;
 
-  Team.findByPk(teamId)
-    .then((team) => {
-      if (!team) {
-        res.status(404).send('Team not found');
+
+//เพิ่มข้อมูล
+app.post("/teams", (req, res) => {
+  const teams = req.body;
+  db.run(
+    "INSERT INTO teams (team_name) VALUES (?)",
+    teams.team_name,
+    (err) => {
+      if (err) {
+        res.status(500).send(err);
       } else {
-        team
-          .destroy()
-          .then(() => {
-            res.send({});
-          })
-          .catch((err) => {
-            res.status(500).send(err);
-          });
+        
+        teams.id = this.lastID;
+        res.send(teams);
+        res.status(200);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
-});
-// route to get all books
-app.get('/scores', (req, res) => {
-  Score.findAll()
-    .then((scores) => {
-      res.json(scores);
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  );
 });
 
-// route to get a book by id a
-app.get('/scores/:id', (req, res) => {
-  Score.findByPk(req.params.id)
-    .then((score) => {
-      if (!score) {
-        res.status(404).send('Score not found');
+
+
+//ส่วนแก้ไข
+app.put("/teams/:id", (req, res) => {
+  console.log(req.params.id);
+  const teams = req.body;
+  db.run(
+    "UPDATE teams SET team_name = ?  WHERE team_id = ? ",
+    teams.team_name,
+    req.params.id,
+    (err) => {
+      if (err) {
+        res.status(500).send(err);
       } else {
-        res.json(score);
+        res.send(teams);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
-});
-// Create a new score
-app.post('/scores', (req, res) => {
-  const { playerId, teamId, score } = req.body;
-
-  Score.create({ playerId, teamId, score })
-    .then((score) => {
-      res.send(score);
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  );
 });
 
-// Update a score
-app.put('/scores/:id', (req, res) => {
-  const { playerId, teamId, score } = req.body;
-  const scoreId = req.params.id;
 
-  Score.findByPk(scoreId)
-    .then((score) => {
-      if (!score) {
-        res.status(404).send('Score not found');
+//ลบไปทำเอาเอง
+app.delete("/teams/:id", (req, res) => {
+  db.run("DELETE FROM teams WHERE team_id = ?", req.params.id, (err) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      res.send({});
+    }
+  });
+});
+
+
+
+// school_province
+
+app.get("/scores", (req, res) => {
+  db.all("SELECT * FROM scores ",(err, row) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      if (!row) {
+        res.status(404).send("scores not found");
       } else {
-        score
-          .update({ playerId, teamId, score })
-          .then(() => {
-            res.send(score);
-          })
-          .catch((err) => {
-            res.status(500).send(err);
-          });
+        res.json(row);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  });
 });
 
-// Delete a score
-app.delete('/scores/:id', (req, res) => {
-  const scoreId = req.params.id;
-
-  Score.findByPk(scoreId)
-    .then((score) => {
-      if (!score) {
-        res.status(404).send('Score not found');
+// ดูข้อมูลด้วย id
+app.get("/scores/:id", (req, res) => {
+  console.log("get")
+  db.get("SELECT * FROM scores WHERE id = ? ", req.params.id, (err, row) => {
+    
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      if (!row) {
+        res.status(404).send("scores not found");
       } else {
-        score
-          .destroy()
-          .then(() => {
-            res.send({});
-          })
-          .catch((err) => {
-            res.status(500).send(err);
-          });
+        console.log(row)
+        res.json(row);
       }
-    })
-    .catch((err) => {
-      res.status(500).send(err);
-    });
+    }
+  });
 });
-// router.get('/getPlayers', (req, res) => {
-//   // Fetch player IDs from the database
-//   db.all('SELECT id FROM players', (err, rows) => {
-//     if (err) {
-//       console.error('Error fetching player IDs:', err);
-//       res.status(500).json({ error: 'Internal Server Error' });
-//     } else {
-//       const playerIds = rows.map(row => ({ id: row.id }));
-//       res.json(playerIds);
-//     }
-//   });
-// });
 
-// module.exports = router;
+
+
+//เพิ่มข้อมูล
+app.post("/scores", (req, res) => {
+  const score = req.body;
+  db.run(
+    "INSERT INTO scores (player_id , team_id,score) VALUES (?, ?, ?)",
+    scores.player_id,
+    scores.team_id,
+    scores.score,
+    (err) => {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        
+        scores.id = this.lastID;
+        res.send(scores);
+        res.status(200);
+      }
+    }
+  );
+});
+
+
+//ส่วนแก้ไข
+app.put("/scores/:id", (req, res) => {
+  console.log(req.params.id);
+  const scores = req.body;
+  db.run(
+    "UPDATE scores SET player_id = ?, team_id = ?,score = ?  WHERE id = ? ",
+    scores.player_id,
+    scores.team_id,
+    scores.score,
+    req.params.id,
+    (err) => {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        res.send(scores);
+      }
+    }
+  );
+});
+
+
+//ลบไปทำเอาเอง
+app.delete("/scores/:id", (req, res) => {
+  db.run("DELETE FROM scores WHERE id = ?", req.params.id, (err) => {
+    if (err) {
+      res.status(500).send(err);
+    } else {
+      res.send({});
+    }
+  });
+});
+
+
+
+
+
+
+
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Listening on port ${port}...`));
+app.listen(port, () => console.log(`Listening on port ${port}`));
